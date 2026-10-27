@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>STILL LIFE GENERATOR</title>
+<style>
+:root{--bg:#0c0c0b;--panel:#1a1a18;--panel2:#242422;--line:#47473f;--fg:#d9d6c8;--dim:#8d8b7e;--yel:#e6dfa3;--red:#c9786a;
+color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*,*::before,*::after{box-sizing:inherit}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.5 "Courier New",Courier,"Lucida Console",monospace}
+body{min-height:100vh;padding:14px}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:50;
+background:repeating-linear-gradient(0deg,rgba(0,0,0,.22) 0 1px,transparent 1px 3px);mix-blend-mode:multiply}
+body::before{content:"";position:fixed;left:0;right:0;height:90px;top:-90px;pointer-events:none;z-index:49;
+background:linear-gradient(180deg,transparent,rgba(230,223,163,.045),transparent);animation:roll 11s linear infinite}
+@keyframes roll{to{transform:translateY(calc(100vh + 180px))}}
+@media (prefers-reduced-motion:reduce){body::before{animation:none;display:none}h1{animation:none!important}}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding:0 0 10px;margin-bottom:14px;flex-wrap:wrap}
+h1{margin:0;font-size:22px;letter-spacing:.18em;font-weight:700;color:var(--yel);text-shadow:1.5px 0 rgba(201,120,106,.55),-1.5px 0 rgba(120,170,200,.45);animation:flick 7s steps(1) infinite}
+@keyframes flick{0%,93%,100%{opacity:1}94%{opacity:.7;transform:translateX(2px)}95%{opacity:1}96%{opacity:.8;transform:translateX(-1px)}}
+.sub{color:var(--dim)}
+.app{display:grid;grid-template-columns:310px 1fr;gap:14px;align-items:start}
+.win{background:var(--panel);border:1px solid var(--line);box-shadow:3px 3px 0 #000}
+.tb{display:flex;justify-content:space-between;gap:8px;background:var(--panel2);border-bottom:1px solid var(--line);padding:3px 8px;color:var(--yel)}
+.tb span:last-child{color:var(--dim)}
+.bd{padding:12px}
+.ctl{display:flex;flex-direction:column;gap:14px}
+button,.btn{font:inherit;color:var(--fg);background:var(--panel2);border:1px solid var(--dim);padding:8px 10px;cursor:pointer;text-align:center;letter-spacing:.06em;display:block;width:100%}
+button:hover:not(:disabled),.btn:hover{background:#33332f;border-color:var(--yel);color:var(--yel)}
+button:disabled{opacity:.35;cursor:not-allowed}
+button.main{background:var(--yel);color:#15150f;border-color:var(--yel);font-weight:700}
+button.main:hover:not(:disabled){background:#f3edb8;color:#000}
+:focus-visible{outline:2px solid var(--yel);outline-offset:2px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#file{position:absolute;width:1px;height:1px;opacity:0}
+#file:focus-visible+label{outline:2px solid var(--yel);outline-offset:2px}
+.info{color:var(--dim);margin-top:8px;word-break:break-all;min-height:3em}
+.wv{display:flex;justify-content:space-between;align-items:baseline}
+.wv b{font-size:30px;color:var(--yel);font-weight:400}
+input[type=range]{width:100%;accent-color:var(--yel);margin:8px 0 4px;background:transparent}
+.desc{color:var(--dim);min-height:3em}
+.stale{color:var(--red)}
+.bar{height:6px;background:#000;border:1px solid var(--line);margin-top:10px;display:none}
+.bar i{display:block;height:100%;width:0;background:var(--yel)}
+#msg{min-height:2.6em;color:var(--dim)}
+#msg.err{color:var(--red)}
+.view{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.fr{background:#000;display:flex;align-items:center;justify-content:center;min-height:240px;padding:6px}
+canvas{max-width:100%;height:auto;display:block;image-rendering:auto}
+.empty{color:var(--dim);text-align:center;padding:30px 10px}
+.drop .win:first-child{border-color:var(--yel)}
+@media (max-width:1000px){.app{grid-template-columns:1fr}.view{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>STILL LIFE GENERATOR</h1>
+<div class="sub">distorsión de espacios liminales &middot; todo corre en tu navegador</div>
+</header>
+<div class="app" id="app">
+<div class="ctl">
+<div class="win"><div class="tb"><span>1 / LOAD</span><span>PNG JPG WEBP</span></div>
+<div class="bd">
+<input type="file" id="file" accept="image/png,image/jpeg,image/webp">
+<label for="file" class="btn">SELECT IMAGE</label>
+<div class="info" id="info">Ninguna imagen cargada. También podés arrastrarla a esta ventana.</div>
+</div></div>
+<div class="win"><div class="tb"><span>2 / WEIRDNESS</span><span id="stale"></span></div>
+<div class="bd">
+<div class="wv"><span>nivel</span><b id="wval">0</b></div>
+<input type="range" id="w" min="0" max="100" value="0" aria-label="WEIRDNESS">
+<div class="desc" id="desc"></div>
+</div></div>
+<div class="win"><div class="tb"><span>3 / OUTPUT</span><span id="seedv">seed &mdash;</span></div>
+<div class="bd" style="display:flex;flex-direction:column;gap:8px">
+<button class="main" id="gen" disabled>GENERATE STILL LIFE</button>
+<div class="row"><button id="regen" disabled>REGENERATE</button><button id="dl" disabled>DOWNLOAD PNG</button></div>
+<button id="reset">RESET</button>
+<div class="bar" id="bar"><i id="barf"></i></div>
+<div id="msg" role="status"></div>
+</div></div>
+</div>
+<div class="view">
+<div class="win"><div class="tb"><span>ORIGINAL</span><span id="od">&mdash;</span></div>
+<div class="fr"><canvas id="co" width="1" height="1" hidden></canvas><div class="empty" id="oe">sin imagen</div></div></div>
+<div class="win"><div class="tb"><span>STILL LIFE</span><span id="rd">&mdash;</span></div>
+<div class="fr"><canvas id="cr" width="1" height="1" hidden></canvas><div class="empty" id="re">el resultado aparece acá</div></div></div>
+</div>
+</div>
+<script>
+(function(){
+"use strict";
+var $=function(i){return document.getElementById(i)};
+var MAXD=1200;
+var W=0,H=0,src=null,job=0,seed=0,hasResult=false,nat="",busy=false;
+var co=$("co"),cr=$("cr"),cox=co.getContext("2d",{willReadFrequently:true}),crx=cr.getContext("2d");
+var TIERS=[[5,"Imagen prácticamente intacta."],[18,"Pequeñas anomalías visuales."],[40,"Perspectiva ligeramente incorrecta y texturas extrañas."],[62,"Deformaciones espaciales y geometría imposible."],[88,"Arquitectura surrealista; estructuras que desafían la gravedad."],[101,"Distorsión extrema. Realidad defectuosa."]];
+
+function msg(t,e){var m=$("msg");m.textContent=t||"";m.className=e?"err":""}
+function sm(a,b,x){x=(x-a)/(b-a);x=x<0?0:x>1?1:x;return x*x*(3-2*x)}
+function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function grid(G,R){var a=new Float32Array((G+1)*(G+1));for(var i=0;i<a.length;i++)a[i]=R()*2-1;return{G:G,a:a}}
+function nz(g,u,v){var G=g.G,x=u*G,y=v*G;if(x<0)x=0;if(x>G-1e-6)x=G-1e-6;if(y<0)y=0;if(y>G-1e-6)y=G-1e-6;
+var i=x|0,j=y|0,fx=x-i,fy=y-j;fx=fx*fx*(3-2*fx);fy=fy*fy*(3-2*fy);var s=G+1,a=g.a,p=j*s+i;
+return(a[p]*(1-fx)+a[p+1]*fx)*(1-fy)+(a[p+s]*(1-fx)+a[p+s+1]*fx)*fy}
+function hash(x,y,s){var h=(Math.imul(x,374761393)+Math.imul(y,668265263)+Math.imul(s,69069))|0;h=Math.imul(h^(h>>>13),1274126177);return((h^(h>>>16))>>>0)/4294967296}
+function refl(t,m){if(t<0||t>m){var p=2*m;t=((t%p)+p)%p;if(t>m)t=p-t}return t}
+function samp(ch,x,y){x=refl(x,W-1);y=refl(y,H-1);var x0=x|0,y0=y|0,x1=x0<W-1?x0+1:x0,y1=y0<H-1?y0+1:y0,fx=x-x0,fy=y-y0;
+return(src[(y0*W+x0)*4+ch]*(1-fx)+src[(y0*W+x1)*4+ch]*fx)*(1-fy)+(src[(y1*W+x0)*4+ch]*(1-fx)+src[(y1*W+x1)*4+ch]*fx)*fy}
+
+function build(w,s){
+var R=rng(s),r=function(){return R()},P={w:w};
+P.gA=grid(6,R);P.gB=grid(6,R);P.gC=grid(40,R);P.gD=grid(40,R);
+P.f1=1+r()*3;P.f2=1+r()*3;P.p1=r()*6.283;P.p2=r()*6.283;
+P.k1=(r()<.5?-1:1)*(.5+r()*.5);P.k2=(r()<.5?-1:1)*(.5+r()*.5);P.bar=(r()<.5?-1:1)*(.8+r()*.8);
+P.wa=.04*Math.pow(w,1.25);P.ld=.07*Math.pow(w,1.3);P.tx=.007*w;P.ca=Math.pow(w,1.6)*.02*W;
+P.sw=[];var nsw=w>.7?2:w>.45?1:0;
+for(var i=0;i<nsw;i++)P.sw.push({x:.25+r()*.5,y:.25+r()*.5,s:.12+r()*.15,a:(r()<.5?-1:1)*(1.6+r()*1.4)*sm(.4,.8,w)});
+P.reg=[];var nr=w<.18?0:Math.floor(w*5);
+for(i=0;i<nr;i++){var m=r(),rw=.12+r()*.3,rh=.06+r()*.22;
+P.reg.push({m:m<.45?0:m<.75?1:2,x:r()*(1-rw),y:r()*(1-rh),w:rw,h:rh,ox:(r()-.5)*.3*w,oy:(r()-.5)*.16*w,k:2+Math.floor(r()*3)})}
+if(w>.7&&r()<.55)P.reg.push({m:1,x:.55,y:0,w:.45,h:1,ox:0,oy:0,k:1});
+P.rs=new Float32Array(H);P.rw=new Uint8Array(H);
+var nb=Math.round(w*w*14+w*4);
+for(i=0;i<nb;i++){var y0=(r()*H)|0,hh=(2+r()*r()*40*(.3+w))|0,sh=(r()-.5)*W*.12*w,sp=w>.6&&r()<.4;
+for(var y=y0;y<y0+hh&&y<H;y++){P.rs[y]+=sh;if(sp)P.rw[y]=1}}
+if(w>.25){var jj=w*w*4;for(y=0;y<H;y++)P.rs[y]+=(hash(0,y,s)-.5)*jj}
+P.tint=.5*w;P.vig=.5*w;P.sl=.12*w;P.grain=40*w*w;
+return P}
+
+function tick(){return new Promise(function(f){setTimeout(f,0)})}
+
+async function render(tok){
+var w=+$("w").value/100,P=build(w,seed),out=new ImageData(W,H),o=out.data,asp=W/H,
+t0=performance.now(),ys=0,Wm=W-1,Hm=H-1,reg=P.reg,sws=P.sw,s=seed;
+var gate1=sm(.1,.6,w),gate2=sm(.4,.9,w),gbar=sm(.45,.9,w);
+for(var y=0;y<H;y++){
+for(var x=0;x<W;x++){
+var u0=x/W,v0=y/H,u=u0,v=v0,i,q;
+for(i=0;i<reg.length;i++){q=reg[i];
+if(u>q.x&&u<q.x+q.w&&v>q.y&&v<q.y+q.h){
+if(q.m===0){u+=q.ox;v+=q.oy}else if(q.m===1){u=q.x+(q.x+q.w-u)}else{u=q.x+(((u-q.x)*q.k)%q.w)}}}
+var d=1+(v-.5)*P.k1*gate1*.9;if(d<.25)d=.25;u=.5+(u-.5)/d;
+d=1+(u-.5)*P.k2*gate2*.7;if(d<.25)d=.25;v=.5+(v-.5)/d;
+var r2=(u-.5)*(u-.5)+(v-.5)*(v-.5),f=1+P.bar*gbar*r2;u=.5+(u-.5)*f;v=.5+(v-.5)*f;
+u+=P.wa*Math.sin(v*P.f1*6.283+P.p1);v+=P.wa*Math.sin(u*P.f2*6.283+P.p2);
+for(i=0;i<sws.length;i++){q=sws[i];var dx=(u-q.x)*asp,dy=v-q.y,dd=dx*dx+dy*dy,a=q.a*Math.exp(-dd/(2*q.s*q.s)),c=Math.cos(a),sn=Math.sin(a);
+u=q.x+(dx*c-dy*sn)/asp;v=q.y+dx*sn+dy*c}
+u+=P.ld*nz(P.gA,u0,v0)+P.tx*nz(P.gC,u0,v0);v+=P.ld*nz(P.gB,u0,v0)+P.tx*nz(P.gD,u0,v0);
+u+=P.rs[y]/W;
+var sx=u*W,sy=v*H,rx=(u-.5)*P.ca*2,ry=(v-.5)*P.ca*2;
+var R_=samp(0,sx+rx,sy+ry),G_=samp(1,sx,sy),B_=samp(2,sx-rx,sy-ry);
+if(P.rw[y]){var tt=R_;R_=B_;B_=tt}
+if(w>0){
+var l=(R_*.3+G_*.59+B_*.11)/255,k=P.tint*l*l;R_+=k*60;G_+=k*52;B_-=k*30;
+var vg=1-P.vig*((u0-.5)*(u0-.5)+(v0-.5)*(v0-.5))*2.2;R_*=vg;G_*=vg;B_*=vg;
+if(y&1){var sl=1-P.sl;R_*=sl;G_*=sl;B_*=sl}
+var n=(hash(x,y,s)-.5)*P.grain;R_+=n;G_+=n;B_+=n}
+var p=(y*W+x)*4;o[p]=R_;o[p+1]=G_;o[p+2]=B_;o[p+3]=255}
+if(performance.now()-t0>14){
+crx.putImageData(out,0,0,0,ys,W,y+1-ys);ys=y+1;
+$("barf").style.width=((y/H)*100)+"%";
+await tick();if(tok!==job)return false;t0=performance.now()}}
+crx.putImageData(out,0,0,0,ys,W,H-ys);
+return true}
+
+async function generate(newSeed){
+if(!src)return;
+if(newSeed||!seed)seed=(Math.random()*4294967295)>>>0||1;
+var tok=++job;busy=true;setBusy(true);
+cr.width=W;cr.height=H;cr.hidden=false;$("re").hidden=true;
+$("bar").style.display="block";$("barf").style.width="0";msg("Procesando…");
+var ok=false;
+try{ok=await render(tok)}catch(e){console.error(e);msg("Error al procesar: "+e.message,true)}
+if(tok!==job)return;
+busy=false;$("bar").style.display="none";
+if(ok){hasResult=true;$("rd").textContent=W+" × "+H+" px";$("seedv").textContent="seed "+seed;$("stale").textContent="";
+msg("Listo. WEIRDNESS "+$("w").value+", semilla "+seed+".")}
+setBusy(false)}
+
+function setBusy(b){var has=!!src;$("gen").disabled=!has||b;$("regen").disabled=!has||b;$("dl").disabled=!hasResult||b}
+function updDesc(){var v=+$("w").value;$("wval").textContent=v;
+for(var i=0;i<TIERS.length;i++)if(v<TIERS[i][0]){$("desc").textContent=TIERS[i][1];break}
+if(hasResult&&!busy)$("stale").textContent="cambió: generá de nuevo";}
+
+function loadFile(f){
+if(!f)return;
+if(!/^image\/(png|jpeg|webp)$/.test(f.type)){msg("Formato no admitido. Usá PNG, JPG o WEBP.",true);return}
+var url=URL.createObjectURL(f),im=new Image();
+im.onload=function(){
+var nw=im.naturalWidth,nh=im.naturalHeight,sc=Math.min(1,MAXD/Math.max(nw,nh));
+W=Math.max(1,Math.round(nw*sc));H=Math.max(1,Math.round(nh*sc));
+co.width=W;co.height=H;cox.drawImage(im,0,0,W,H);
+src=cox.getImageData(0,0,W,H).data;URL.revokeObjectURL(url);
+job++;hasResult=false;busy=false;seed=0;cr.hidden=true;$("re").hidden=false;$("rd").textContent="—";$("seedv").textContent="seed —";$("stale").textContent="";
+co.hidden=false;$("oe").hidden=true;$("od").textContent=nw+" × "+nh+" px";
+nat=f.name.replace(/\.[^.]+$/,"")||"image";
+$("info").textContent=f.name+" — "+nw+" × "+nh+" px"+(sc<1?" (se procesa a "+W+" × "+H+")":"");
+$("bar").style.display="none";setBusy(false);msg("Imagen cargada. Elegí WEIRDNESS y generá.")};
+im.onerror=function(){URL.revokeObjectURL(url);msg("No se pudo leer la imagen.",true)};
+im.src=url}
+
+async function download(){
+if(!hasResult)return;
+var blob=await new Promise(function(r){cr.toBlob(r,"image/png")});
+if(!blob){msg("No se pudo crear el PNG.",true);return}
+var name="still-life_"+nat+"_w"+$("w").value+"_"+seed+".png";
+try{
+if(window.claude&&window.claude.use){
+var d=await window.claude.use("downloads");
+if(d){await d.save({filename:name,data:blob});msg("PNG guardado: "+name);return}}
+var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();
+msg("Descarga iniciada: "+name)}
+catch(e){if(e&&e.code==="declined")msg("Descarga cancelada.");else msg("No se pudo descargar desde esta vista. Probá clic derecho sobre el resultado → guardar imagen.",true)}}
+
+function reset(){job++;busy=false;hasResult=false;seed=0;$("w").value=0;updDesc();
+cr.hidden=true;$("re").hidden=false;$("rd").textContent="—";$("seedv").textContent="seed —";$("stale").textContent="";
+$("bar").style.display="none";setBusy(false);msg(src?"Restablecido. La imagen original sigue cargada.":"")}
+
+$("file").addEventListener("change",function(e){loadFile(e.target.files[0]);e.target.value=""});
+$("w").addEventListener("input",updDesc);
+$("gen").addEventListener("click",function(){generate(!seed)});
+$("regen").addEventListener("click",function(){generate(true)});
+$("dl").addEventListener("click",download);
+$("reset").addEventListener("click",reset);
+var ap=$("app");
+window.addEventListener("dragover",function(e){e.preventDefault();ap.classList.add("drop")});
+window.addEventListener("dragleave",function(){ap.classList.remove("drop")});
+window.addEventListener("drop",function(e){e.preventDefault();ap.classList.remove("drop");if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0])});
+updDesc();
+})();
+</script>
+</body>
+</html>
